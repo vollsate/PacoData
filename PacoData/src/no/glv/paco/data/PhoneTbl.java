@@ -1,8 +1,11 @@
 package no.glv.paco.data;
 
-import java.awt.Cursor;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 
 import no.glv.paco.intrfc.Phone;
 
@@ -11,7 +14,7 @@ import no.glv.paco.intrfc.Phone;
  */
 class PhoneTbl {
 
-    private static final String TAG = PhoneTbl.class.getSimpleName();
+    private static Logger log = Logger.getLogger( PhoneTbl.class.getSimpleName() );
 
     public static final String TBL_NAME = "phone";
 
@@ -49,7 +52,7 @@ class PhoneTbl {
      *
      * @param db Do not close!
      */
-    static void CreateTable( SQLiteDatabase db ) {
+    static void CreateTable( Statement db ) throws SQLException {
         String sql = "CREATE TABLE " + TBL_NAME + "("
                 + COL_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, "
                 + COL_STDID + " TEXT NOT NULL, "
@@ -57,34 +60,35 @@ class PhoneTbl {
                 + COL_PHONE + " LONG, "
                 + COL_TYPE + " INTEGER)";
 
-        Log.v( TAG, "Executing SQL: " + sql );
-        db.execSQL( sql );
+        log.finest( "Executing SQL: " + sql );
+        db.executeUpdate( sql );
     }
 
     /**
      * Deletes the table from the database
      */
-    public static void DropTable( SQLiteDatabase db ) {
+    public static void DropTable( Statement db ) throws SQLException {
         String sql = "DROP TABLE IF EXISTS " + TBL_NAME;
 
-        Log.v( TAG, "Executing SQL: " + sql );
-        db.execSQL( sql );
+        log.finest( "Executing SQL: " + sql );
+        db.executeUpdate( sql );
     }
 
     /**
-     * @param stdID    The student ID
+     * @param stdID The student ID
      * @param parentID The parent ID
-     * @param db       The database to lookup in
+     * @param db The database to lookup in
+     * 
      * @return A list of all registered phone numbers
      */
-    public static List<Phone> LoadParentPhone( String stdID, String parentID, SQLiteDatabase db ) {
+    public static List<Phone> LoadParentPhone( String stdID, String parentID, PreparedStatement db ) throws SQLException {
         List<Phone> list = new ArrayList<Phone>();
 
         String sql = "SELECT * FROM " + TBL_NAME + " WHERE " + COL_STDID + " = ? AND " + COL_PARENTID + "=?";
         Log.d( TAG, "Executing SQL: " + sql );
 
         try {
-            Cursor cursor = db.rawQuery( sql, new String[]{ stdID, parentID } );
+            Cursor cursor = db.rawQuery( sql, new String[] { stdID, parentID } );
             cursor.moveToFirst();
             while ( !cursor.isAfterLast() ) {
                 list.add( CreateFromCursor( cursor ) );
@@ -101,7 +105,8 @@ class PhoneTbl {
     }
 
     /**
-     * Creates a new <code>Phone</code> object from the content of a Cursor after a database query.
+     * Creates a new <code>Phone</code> object from the content of a Cursor
+     * after a database query.
      */
     private static Phone CreateFromCursor( Cursor cursor ) {
         Phone phone = new PhoneBean( cursor.getInt( COL_TYPE_ID ) );
@@ -117,7 +122,7 @@ class PhoneTbl {
      * Inserts a phone number into the database
      *
      * @param phone The phone to insert
-     * @param db    Is closed after use
+     * @param db Is closed after use
      */
     public static long Insert( Phone phone, SQLiteDatabase db ) {
         ContentValues phoneValues = PhoneValues( phone );
@@ -132,14 +137,14 @@ class PhoneTbl {
      * Updates a phone in the database.
      *
      * @param phone The phone to update
-     * @param db    Is closed after use
+     * @param db Is closed after use
      * @return 1 if successful, 0 otherwise
      */
     public static int Update( Phone phone, SQLiteDatabase db ) {
         String sqlFiler = COL_STDID + " = ?";
         ContentValues cv = PhoneValues( phone );
 
-        int retVal = db.update( TBL_NAME, cv, sqlFiler, new String[]{ phone.getStudentID() } );
+        int retVal = db.update( TBL_NAME, cv, sqlFiler, new String[] { phone.getStudentID() } );
         db.close();
 
         return retVal;
@@ -149,12 +154,12 @@ class PhoneTbl {
      * Will delete every phone registered to a single student ID
      *
      * @param stdID The student ID
-     * @param db    The database to lookup
+     * @param db The database to lookup
      * @return The number of rows deleted
      */
     public static int Delete( String stdID, SQLiteDatabase db ) {
         String sqlFilter = COL_STDID + " = ?";
-        int retVal = db.delete( TBL_NAME, sqlFilter, new String[]{ stdID } );
+        int retVal = db.delete( TBL_NAME, sqlFilter, new String[] { stdID } );
         db.close();
 
         return retVal;
