@@ -1,8 +1,12 @@
 package no.glv.paco.data;
 
-import java.awt.Cursor;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 
 import no.glv.paco.intrfc.Parent;
 
@@ -11,7 +15,7 @@ import no.glv.paco.intrfc.Parent;
  */
 class ParentTbl {
 
-    private static final String TAG = ParentTbl.class.getSimpleName();
+    private static Logger log = Logger.getLogger( ParentTbl.class.getSimpleName() );
 
     public static final String TBL_NAME = "parent";
 
@@ -39,12 +43,10 @@ class ParentTbl {
 
     /**
      * Called as part of initiation of the entire DATABASE.
-     * <p>
-     * DO NOT CLOSE THE SQLiteDatabase
      *
-     * @param db Do not close!
+     * @param db Statement connection to database
      */
-    static void CreateTableSQL( SQLiteDatabase db ) {
+    static void CreateTableSQL( Statement db ) throws SQLException {
         String sql = "CREATE TABLE " + TBL_NAME + "("
                 + COL_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, "
                 + COL_STDID + " TEXT NOT NULL, "
@@ -53,36 +55,42 @@ class ParentTbl {
                 + COL_MAIL + " TEXT, "
                 + COL_TYPE + " INTEGER)";
 
-        DBUtils.ExecuteSQL( sql, db );
-    }
-
-    public static void DropTable( SQLiteDatabase db ) {
-        String sql = "DROP TABLE IF EXISTS " + TBL_NAME;
-
-        Log.v( TAG, "Executing SQL: " + sql );
-        db.execSQL( sql );
+        db.executeUpdate( sql );
+        db.close();
     }
 
     /**
-     * Load the parent to a specific student ID. If studentID is null, loads every
+     * 
+     * @param db
+     * @throws SQLException
+     */
+    public static void DropTable( Statement db ) throws SQLException {
+        String sql = "DROP TABLE IF EXISTS " + TBL_NAME;
+
+        log.finest( "Executing SQL: " + sql );
+        db.executeUpdate( sql );
+    }
+
+    /**
+     * Load the parent to a specific student ID. If studentID is null, loads
+     * every
      * parent.
      *
      * @param studentID The student id to look for. May be null.
-     * @param db        The database to query
-     * @return List of all parents connected to the student ID, or every known parent.
+     * @param db The database to query
+     * @return List of all parents connected to the student ID, or every known
+     *         parent.
      */
-    public static List<Parent> LoadParent( String studentID, SQLiteDatabase db ) {
+    public static List<Parent> LoadParent( String studentID, Statement db ) throws SQLException {
         List<Parent> list = new ArrayList<Parent>();
 
         String sql = "SELECT * FROM " + TBL_NAME;
         if ( studentID != null )
-            sql += " WHERE " + COL_STDID + " = ?";
+            sql += " WHERE " + COL_STDID + " = " + studentID;
 
-        Cursor cursor = db.rawQuery( sql, new String[]{ studentID } );
-        cursor.moveToFirst();
-        while ( !cursor.isAfterLast() ) {
+        ResultSet cursor = db.executeQuery( sql );
+        while ( cursor.next() ) {
             list.add( CreateFromCursor( cursor ) );
-            cursor.moveToNext();
         }
 
         cursor.close();
@@ -91,7 +99,7 @@ class ParentTbl {
         return list;
     }
 
-    private static Parent CreateFromCursor( Cursor cursor ) {
+    private static Parent CreateFromCursor( ResultSet cursor ) throws SQLException {
         Parent parent = new ParentBean( cursor.getString( COL_ID_ID ), cursor.getInt( COL_TYPE_ID ) );
 
         parent.setFirstName( cursor.getString( COL_FNAME_ID ) );
@@ -103,21 +111,24 @@ class ParentTbl {
     }
 
     /**
-     * Attempts to insert a parent into the database. If an error occurs, a <code>DatabaseException</code> will be
+     * Attempts to insert a parent into the database. If an error occurs, a
+     * <code>DatabaseException</code> will be
      * thrown.
      *
      * @param parent The parent to insert
-     * @param db     The database to update
+     * @param db The database to update
      * @return The number of rows updated
      */
-    public static long InsertParent( Parent parent, SQLiteDatabase db ) {
-        ContentValues parentValues = ParentValues( parent );
+    public static long InsertParent( Parent parent, Statement db ) throws SQLException {
+        String sql = "INSERT INTO " + TBL_NAME + "VALUES( " +
+                COL_FNAME + "=" + parent.getFirstName();
 
-        long retVal = db.insert( TBL_NAME, null, parentValues );
+        long retVal = db.executeLargeUpdate( sql );
         if ( retVal == -1 )
             throw new DBException( "Error inserting parent: " + parent.toString() );
 
-        parent.setID( String.valueOf( retVal ) ); // Set the row number as the ID
+        // Set the row number as the ID
+        parent.setID( String.valueOf( retVal ) );
         db.close();
 
         return retVal;
@@ -125,31 +136,18 @@ class ParentTbl {
 
     /**
      * @param parent The parent to update
-     * @param db     Is closed after use
+     * @param db Is closed after use
+     * 
      * @return 1 if successful, 0 otherwise
      */
-    public static int UpdateParent( Parent parent, SQLiteDatabase db ) {
+    public static int UpdateParent( Parent parent, PreparedStatement db ) throws SQLException {
         String sqlFiler = COL_STDID + " = ?";
-        ContentValues cv = ParentValues( parent );
 
-        int retVal = db.update( TBL_NAME, cv, sqlFiler, new String[]{ parent.getID() } );
+        db.setString( 1, parent.getStudentID() );
+        int retVal = db.executeUpdate( sqlFiler );
         db.close();
 
         return retVal;
     }
 
-    /**
-     *
-     */
-    private static ContentValues ParentValues( Parent parent ) {
-        ContentValues cv = new ContentValues();
-
-        cv.put( COL_STDID, parent.getStudentID() );
-        cv.put( COL_FNAME, parent.getFirstName() );
-        cv.put( COL_LNAME, parent.getLastName() );
-        cv.put( COL_MAIL, parent.getMail() );
-        cv.put( COL_TYPE, parent.getType() );
-
-        return cv;
-    }
 }
