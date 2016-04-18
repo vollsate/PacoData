@@ -1,6 +1,10 @@
 package no.glv.paco.data;
 
 import java.awt.Cursor;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,37 +37,34 @@ class SettingTbl  {
 	 * @param db
 	 *            Do not close!
 	 */
-	static void CreateTableSQL( SQLiteDatabase db ) {
+	static void CreateTableSQL( Statement db ) throws SQLException {
 		String sql = "CREATE TABLE " + TBL_NAME + "("
 				+ COL_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, "
 				+ COL_NAME + " TEXT, "
 				+ COL_VALUE + " TEXT)";
 
-		DBUtils.ExecuteSQL( sql, db );
+		db.execute( sql );
 	}
 
-	public static void DropTable( SQLiteDatabase db ) {
+	public static void DropTable( Statement db ) throws SQLException {
 		String sql = "DROP TABLE IF EXISTS " + TBL_NAME;
 
-		Log.v( TAG, "Executing SQL: " + sql );
-		db.execSQL( sql );
+		db.executeUpdate( sql );
 	}
 
 	/**
 	 * 
-	 * @param stdClass
 	 * @param db
 	 * @return
 	 */
-	public static List<Setting> Load( int id, SQLiteDatabase db ) {
+	public static List<Setting> Load( int id, PreparedStatement db ) throws SQLException  {
 		List<Setting> list = new ArrayList<Setting>();
 
 		String sql = "SELECT * FROM " + TBL_NAME + " WHERE " + COL_ID + " = ?";
-		Cursor cursor = db.rawQuery( sql, new String[] { String.valueOf( id ) } );
-		cursor.moveToFirst();
-		while ( !cursor.isAfterLast() ) {
+        db.setInt( 1, id );
+		ResultSet cursor = db.executeQuery( sql );
+		while ( cursor.next() ) {
 			list.add( CreateFromCursor( cursor ) );
-			cursor.moveToNext();
 		}
 
 		cursor.close();
@@ -72,23 +73,21 @@ class SettingTbl  {
 		return list;
 	}
 
-	private static Setting CreateFromCursor( Cursor cursor ) {
+	private static Setting CreateFromCursor( ResultSet cursor ) {
 		Setting setting = null;
 
 		return setting;
 	}
 
 	/**
-	 * 
-	 * @param std
-	 * @param db
+     * TODO: Implement
 	 */
-	public static long Insert( Setting setting, SQLiteDatabase db ) {
-		ContentValues parentValues = SettingValues( setting );
+	public static long Insert( Setting setting, PreparedStatement db ) throws SQLException {
+		String sql = "";
+        SettingValues( setting, db, 1 );
 
-		long retVal = db.insert( TBL_NAME, null, parentValues );
+		long retVal = db.executeUpdate( sql );
 
-		// setting.setID( String.valueOf( retVal ) );
 		db.close();
 
 		return retVal;
@@ -102,11 +101,11 @@ class SettingTbl  {
 	 * 
 	 * @return 1 if successful, 0 otherwise
 	 */
-	public static int Update( Setting setting, SQLiteDatabase db ) {
+	public static int Update( Setting setting, PreparedStatement db ) throws  SQLException {
 		String sqlFiler = COL_ID + " = ?";
-		ContentValues cv = SettingValues( setting );
+		SettingValues( setting, db, 2 );
 
-		int retVal = db.update( TBL_NAME, cv, sqlFiler, new String[] { String.valueOf( setting.getID() ) } );
+		int retVal = db.executeUpdate( sqlFiler );
 		db.close();
 
 		return retVal;
@@ -117,9 +116,9 @@ class SettingTbl  {
 	 * @param id
 	 * @param db
 	 */
-	public static int Delete( int id, SQLiteDatabase db ) {
+	public static int Delete( int id, PreparedStatement db ) throws SQLException {
 		String sqlFilter = COL_ID + " = ?";
-		int retVal = db.delete( TBL_NAME, sqlFilter, new String[] { String.valueOf( id ) } );
+		int retVal = db.executeUpdate( sqlFilter );
 		db.close();
 
 		return retVal;
@@ -130,13 +129,9 @@ class SettingTbl  {
 	 * @param setting
 	 * @return
 	 */
-	private static ContentValues SettingValues( Setting setting ) {
-		ContentValues cv = new ContentValues();
-
-		cv.put( COL_ID, setting.getID() );
-		cv.put( COL_NAME, setting.getName() );
-		cv.put( COL_VALUE, setting.getValue() );
-
-		return cv;
+	private static void SettingValues( Setting setting, PreparedStatement db, int index ) throws SQLException {
+		db.setInt( index++, setting.getID() );
+		db.setString( index++, setting.getName() );
+		db.setString( index++, setting.getValue() );
 	}
 }

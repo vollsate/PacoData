@@ -1,10 +1,12 @@
 package no.glv.paco.data;
 
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import no.glv.paco.intrfc.Phone;
@@ -85,18 +87,16 @@ class PhoneTbl {
         List<Phone> list = new ArrayList<Phone>();
 
         String sql = "SELECT * FROM " + TBL_NAME + " WHERE " + COL_STDID + " = ? AND " + COL_PARENTID + "=?";
-        Log.d( TAG, "Executing SQL: " + sql );
+        log.finest( "Executing SQL: " + sql );
 
         try {
-            Cursor cursor = db.rawQuery( sql, new String[] { stdID, parentID } );
-            cursor.moveToFirst();
-            while ( !cursor.isAfterLast() ) {
+            ResultSet cursor = db.executeQuery( sql );
+            while ( cursor.next() ) {
                 list.add( CreateFromCursor( cursor ) );
-                cursor.moveToNext();
             }
             cursor.close();
         } catch ( Exception e ) {
-            Log.e( TAG, "Error getting phonerecord", e );
+            log.log(Level.WARNING, "Error getting phonerecord", e );
         }
 
         db.close();
@@ -108,7 +108,7 @@ class PhoneTbl {
      * Creates a new <code>Phone</code> object from the content of a Cursor
      * after a database query.
      */
-    private static Phone CreateFromCursor( Cursor cursor ) {
+    private static Phone CreateFromCursor( ResultSet cursor ) throws SQLException {
         Phone phone = new PhoneBean( cursor.getInt( COL_TYPE_ID ) );
 
         phone.setStudentID( cursor.getString( COL_STDID_ID ) );
@@ -124,42 +124,28 @@ class PhoneTbl {
      * @param phone The phone to insert
      * @param db Is closed after use
      */
-    public static long Insert( Phone phone, SQLiteDatabase db ) {
-        ContentValues phoneValues = PhoneValues( phone );
+    public static long Insert( Phone phone, PreparedStatement db ) throws SQLException {
+        String sql = "INSERT INTO " + TBL_NAME + " VALUES(?, ?, ?, ?)";
+        PhoneValues( phone, db );
 
-        long retVal = db.insert( TBL_NAME, null, phoneValues );
+        long retVal = db.executeUpdate( sql );
         db.close();
 
         return retVal;
     }
 
-    /**
-     * Updates a phone in the database.
-     *
-     * @param phone The phone to update
-     * @param db Is closed after use
-     * @return 1 if successful, 0 otherwise
-     */
-    public static int Update( Phone phone, SQLiteDatabase db ) {
-        String sqlFiler = COL_STDID + " = ?";
-        ContentValues cv = PhoneValues( phone );
-
-        int retVal = db.update( TBL_NAME, cv, sqlFiler, new String[] { phone.getStudentID() } );
-        db.close();
-
-        return retVal;
-    }
-
-    /**
+   /**
      * Will delete every phone registered to a single student ID
      *
      * @param stdID The student ID
      * @param db The database to lookup
      * @return The number of rows deleted
      */
-    public static int Delete( String stdID, SQLiteDatabase db ) {
-        String sqlFilter = COL_STDID + " = ?";
-        int retVal = db.delete( TBL_NAME, sqlFilter, new String[] { stdID } );
+    public static int Delete( String stdID, PreparedStatement db ) throws SQLException {
+        String sql = "DELETE FROM + " + TBL_NAME + " WHERE " + COL_STDID + " = ?";
+        db.setString( 1, stdID );
+
+        int retVal = db.executeUpdate( sql );
         db.close();
 
         return retVal;
@@ -170,14 +156,21 @@ class PhoneTbl {
      *
      * @param phone The phone to convert
      */
-    private static ContentValues PhoneValues( Phone phone ) {
-        ContentValues cv = new ContentValues();
+    private static void PhoneValues( Phone phone, PreparedStatement db ) throws  SQLException {
+        PhoneValues( phone, db, 1);
+    }
 
-        cv.put( COL_STDID, phone.getStudentID() );
-        cv.put( COL_PARENTID, phone.getParentID() );
-        cv.put( COL_PHONE, phone.getNumber() );
-        cv.put( COL_TYPE, phone.getType() );
-
-        return cv;
+    /**
+     *
+     * @param phone
+     * @param db
+     * @param index
+     * @throws SQLException
+     */
+    private static void PhoneValues( Phone phone, PreparedStatement db, int index ) throws  SQLException {
+        db.setString( index++, phone.getStudentID() );
+        db.setString( index++, phone.getParentID() );
+        db.setLong( index++, phone.getNumber() );
+        db.setInt( index++, phone.getType() );
     }
 }

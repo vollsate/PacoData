@@ -1,6 +1,10 @@
 package no.glv.paco.data;
 
 import java.awt.Cursor;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -48,12 +52,9 @@ class StudentTbl  {
 
     /**
      * Called as part of initiation of the entire DATABASE.
-     * <p>
-     * DO NOT CLOSE THE SQLiteDatabase
-     *
-     * @param db Do not close!
+
      */
-    static void CreateTableSQL( SQLiteDatabase db ) {
+    static void CreateTableSQL( Statement db ) throws SQLException {
         String sql = "CREATE TABLE " + TBL_NAME + "("
                 + COL_IDENT + " TEXT PRIMARY KEY UNIQUE, "
                 + COL_CLASS + " TEXT, "
@@ -66,29 +67,30 @@ class StudentTbl  {
                 + COL_PHONE + " TEXT, "
                 + COL_STRENGTH + " TEXT)";
 
-        DBUtils.ExecuteSQL( sql, db );
+        db.executeUpdate( sql );
+        db.close();
     }
 
-    static void DropTable( SQLiteDatabase db ) {
+    static void DropTable( Statement db ) throws SQLException {
         String sql = "DROP TABLE IF EXISTS " + TBL_NAME;
 
-        DBUtils.ExecuteSQL( sql, db );
+        db.executeUpdate( sql );
     }
 
     /**
-     * @param stdClass Loads every student registered to a particular class.
+     * @param group Loads every student registered to a particular class.
      * @param db       The database to query
      * @return List of every student registered
      */
-    static List<Student> LoadStudentFromClass( String stdClass, SQLiteDatabase db ) {
+    static List<Student> LoadStudentFromGroup(String group, PreparedStatement db ) throws SQLException {
         List<Student> list = new ArrayList<Student>();
 
         String sql = "SELECT * FROM " + TBL_NAME + " WHERE " + COL_CLASS + " = ?";
-        Cursor cursor = db.rawQuery( sql, new String[]{ stdClass } );
-        cursor.moveToFirst();
-        while ( !cursor.isAfterLast() ) {
+        db.setString( 1, group );
+
+        ResultSet cursor = db.executeQuery( sql );
+        while ( cursor.next() ) {
             list.add( CreateFromCursor( cursor ) );
-            cursor.moveToNext();
         }
 
         cursor.close();
@@ -97,7 +99,7 @@ class StudentTbl  {
         return list;
     }
 
-    private static Student CreateFromCursor( Cursor cursor ) {
+    private static Student CreateFromCursor( ResultSet cursor ) throws  SQLException {
         StudentBean bean = new StudentBean( null );
 
         bean.setIdent( cursor.getString( COL_IDENT_ID ) );
@@ -119,10 +121,11 @@ class StudentTbl  {
      * @param db      The database to update
      * @return The number of rows inserted
      */
-    public static long Insert( Student student, SQLiteDatabase db ) {
-        ContentValues stdValues = StudentValues( student );
+    public static long Insert( Student student, PreparedStatement db ) throws SQLException {
+        String sql = "";
+        StudentValues( student, db, 1 );
 
-        long retVal = db.insert( TBL_NAME, null, stdValues );
+        long retVal = db.executeUpdate( sql );
         db.close();
 
         return retVal;
@@ -132,12 +135,14 @@ class StudentTbl  {
      * @param student The student to update
      * @param db      Is closed after use
      * @return 1 if successful, 0 otherwise
+     *
+     * TODO: Implement correctly
      */
-    public static int Update( Student student, SQLiteDatabase db ) {
+    public static int Update( Student student, PreparedStatement db ) throws SQLException {
         String sqlFiler = COL_IDENT + " = ?";
-        ContentValues cv = StudentValues( student );
+        StudentValues( student, db, 2 );
 
-        int retVal = db.update( TBL_NAME, cv, sqlFiler, new String[]{ student.getIdent() } );
+        int retVal = db.executeUpdate( sqlFiler );
         db.close();
 
         return retVal;
@@ -147,10 +152,12 @@ class StudentTbl  {
      * @param stdID The student ID to delete
      * @param db    The database to query
      * @return The number of rows deleted
+     *
+     * TODO: Implement correctly
      */
-    public static int Delete( String stdID, SQLiteDatabase db ) {
+    public static int Delete( String stdID, PreparedStatement db ) throws SQLException {
         String sqlFilter = COL_IDENT + " = ?";
-        int retVal = db.delete( TBL_NAME, sqlFilter, new String[]{ stdID } );
+        int retVal = db.executeUpdate( sqlFilter );
         db.close();
 
         return retVal;
@@ -160,20 +167,16 @@ class StudentTbl  {
      * @param student The student to convert
      * @return A <code>Student</code> converted to key/value pairs
      */
-    private static ContentValues StudentValues( Student student ) {
-        ContentValues cv = new ContentValues();
-
-        cv.put( COL_IDENT, student.getIdent() );
-        cv.put( COL_CLASS, student.getGroupName() );
-        cv.put( COL_GRADE, student.getGrade() );
-        cv.put( COL_FNAME, student.getFirstName() );
-        cv.put( COL_LNAME, student.getLastName() );
-        cv.put( COL_BIRTH, DBUtils.ConvertToString( student.getBirth() ) );
-        cv.put( COL_ADR, student.getAdress() );
-        cv.put( COL_POSTALCODE, student.getPostalCode() );
-        cv.put( COL_PHONE, student.getPhone() );
-        cv.put( COL_STRENGTH, student.getStrength() );
-
-        return cv;
+    private static void StudentValues( Student student, PreparedStatement db, int index ) throws SQLException {
+        db.setString( index++, student.getIdent() );
+        db.setString( index++, student.getGroupName() );
+        db.setString(index++, student.getGrade() );
+        db.setString(index++, student.getFirstName() );
+        db.setString( index++, student.getLastName() );
+        db.setString( index++, DBUtils.ConvertToString( student.getBirth() ) );
+        db.setString( index++, student.getAdress() );
+        db.setString( index++, student.getPostalCode() );
+        db.setString( index++, student.getPhone() );
+        db.setInt( index++, student.getStrength() );
     }
 }

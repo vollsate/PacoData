@@ -1,6 +1,10 @@
 package no.glv.paco.data;
 
 import java.awt.Cursor;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
@@ -45,7 +49,7 @@ class StudentTaskTbl {
 	 * 
 	 * @param db
 	 */
-	public static void CreateTable( SQLiteDatabase db ) {
+	public static void CreateTable( Statement db ) throws SQLException {
 		String sql = "CREATE TABLE " + TBL_NAME + "("
 				+ COL_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, "
 				+ COL_TASK + " INTEGER NOT NULL, "
@@ -54,19 +58,16 @@ class StudentTaskTbl {
 				+ COL_MODE + " LONG NOT NULL, "
 				+ COL_COMMENT + " TEXT)";
 
-		Log.v( TAG, "Executing SQL: " + sql );
-		db.execSQL( sql );
+		db.executeUpdate( sql );
 	}
 
 	/**
 	 * 
 	 * @param db
 	 */
-	public static void DropTable( SQLiteDatabase db ) {
+	public static void DropTable( Statement db ) throws SQLException {
 		String sql = "DROP TABLE IF EXISTS " + TBL_NAME;
-
-		Log.v( TAG, "Executing SQL: " + sql );
-		db.execSQL( sql );
+		db.executeUpdate( sql );
 	}
 
 	/**
@@ -77,16 +78,14 @@ class StudentTaskTbl {
 	 * @param db
 	 * @return
 	 */
-	public static List<String> FindAllTaskNames( SQLiteDatabase db ) {
+	public static List<String> FindAllTaskNames( Statement db ) throws SQLException {
 		List<String> list = new LinkedList<String>();
 		String sql = "SELECT distinct " + COL_TASK + " FROM " + TBL_NAME;
 
-		Cursor cursor = db.rawQuery( sql, null );
-		cursor.moveToFirst();
+		ResultSet cursor = db.executeQuery( sql );
 
-		while ( !cursor.isAfterLast() ) {
+		while ( cursor.next() ) {
 			list.add( cursor.getString( 0 ) );
-			cursor.moveToNext();
 		}
 
 		cursor.close();
@@ -96,14 +95,16 @@ class StudentTaskTbl {
 
 	/**
 	 * 
-	 * @param name
+	 * @param taskID
 	 * @param db
 	 * @return
 	 */
-	public static int RemoveStudentsInTask( int taskID, SQLiteDatabase db ) {
-		String sql = COL_TASK + "=?";
+	public static int RemoveStudentsInTask( int taskID, PreparedStatement db ) throws SQLException {
+		String sql = "DELETE FROM " + TBL_NAME +
+				" WHERE " + COL_TASK + "=?";
 
-		int row = db.delete( TBL_NAME, sql, new String[] { String.valueOf( taskID ) } );
+		db.setInt( 1, taskID );
+		int row = db.executeUpdate( sql );
 
 		db.close();
 		return row;
@@ -114,16 +115,15 @@ class StudentTaskTbl {
 	 * @param db
 	 * @return
 	 */
-	public static List<Assignment> LoadAllInTask( SQLiteDatabase db, Task task ) {
+	public static List<Assignment> LoadAllInTask( PreparedStatement db, Task task ) throws SQLException {
 		String sql = "SELECT * FROM " + TBL_NAME + " WHERE " + COL_TASK + "=?";
+		db.setInt( 1, task.getID() );
 
-		Cursor cursor = db.rawQuery( sql, new String[] { String.valueOf( task.getID() ) } );
+		ResultSet cursor = db.executeQuery( sql );
 		List<Assignment> list = new ArrayList<Assignment>();
-		cursor.moveToFirst();
 
-		while ( !cursor.isAfterLast() ) {
+		while ( cursor.next() ) {
 			list.add( CreateFromCursor( cursor ) );
-			cursor.moveToNext();
 		}
 
 		cursor.close();
@@ -136,16 +136,14 @@ class StudentTaskTbl {
 	 * @param db
 	 * @return
 	 */
-	public static List<Assignment> LoadAll( SQLiteDatabase db ) {
+	public static List<Assignment> LoadAll( Statement db ) throws SQLException {
 		String sql = "SELECT * FROM " + TBL_NAME;
 
-		Cursor cursor = db.rawQuery( sql, null );
+		ResultSet cursor = db.executeQuery( sql );
 		List<Assignment> list = new ArrayList<Assignment>();
-		cursor.moveToFirst();
 
-		while ( !cursor.isAfterLast() ) {
+		while ( cursor.next() ) {
 			list.add( CreateFromCursor( cursor ) );
-			cursor.moveToNext();
 		}
 
 		cursor.close();
@@ -160,15 +158,18 @@ class StudentTaskTbl {
 	 * @param db
 	 * @return
 	 */
-	public static Assignment Load( String ident, String task, SQLiteDatabase db ) {
+	public static Assignment Load( String ident, String task, PreparedStatement db ) throws  SQLException {
 		String sql = "SELECT * FROM " + TBL_NAME + " WHERE " + COL_TASK + "=? AND " + COL_IDENT + "=?";
-		Cursor cursor = db.rawQuery( sql, new String[] { task, ident } );
+		db.setString( 1, task);
+		db.setString( 2, ident );
 
-		if ( cursor.getCount() > 1 )
+		ResultSet cursor = db.executeQuery( sql );
+
+/*
+		if ( cursor.getMetaData(). > 1 )
 			throw new IllegalStateException( "Too many Assignment: ident=" + ident
 					+ ", task=" + task );
-
-		cursor.moveToFirst();
+*/
 		return CreateFromCursor( cursor );
 	}
 
@@ -177,7 +178,7 @@ class StudentTaskTbl {
 	 * @param cursor
 	 * @return
 	 */
-	private static Assignment CreateFromCursor( Cursor cursor ) {
+	private static Assignment CreateFromCursor( ResultSet cursor ) throws SQLException {
 		int id = cursor.getInt( COL_ID_ID );
 		int task = cursor.getInt( COL_TASK_ID );
 		String ident = cursor.getString( COL_IDENT_ID );
@@ -202,7 +203,7 @@ class StudentTaskTbl {
 	 * @param db
 	 * @return
 	 */
-	public static int Insert( Assignment task, SQLiteDatabase db ) {
+	public static int Insert( Assignment task, PreparedStatement db ) throws SQLException {
 		int retVal = InsertOneST( task, db );
 		db.close();
 		return retVal;
@@ -214,8 +215,10 @@ class StudentTaskTbl {
 	 * @param db Does NOT close the connection
 	 * @return
 	 */
-	private static int InsertOneST( Assignment task, SQLiteDatabase db ) {
-		long rowNum = db.insert( TBL_NAME, null, StudentTaskValues( task ) );
+	private static int InsertOneST( Assignment task, PreparedStatement db ) throws SQLException {
+        String sql = "";
+
+		long rowNum = db.executeUpdate( sql );
 
 		( (AssignmentBean )task).setID( (int) rowNum );
 		return (int) rowNum;
@@ -227,7 +230,7 @@ class StudentTaskTbl {
 	 * @param db
 	 * @return
 	 */
-	public static void InsertAll( Task task, SQLiteDatabase db ) {
+	public static void InsertAll( Task task, PreparedStatement db ) throws SQLException {
 		Iterator<Assignment> it = task.getAssignmentList().iterator();
 		while ( it.hasNext() ) {
 			Assignment st = it.next();
@@ -245,12 +248,11 @@ class StudentTaskTbl {
 	 * @param db
 	 * @return
 	 */
-	public static long Update( Assignment stdTask, SQLiteDatabase db ) {
+	public static long Update( Assignment stdTask, PreparedStatement db ) throws SQLException {
 		long retVal = 0;
 
-		String whereClause = COL_ID + "=?";
-		retVal = db.update( TBL_NAME, StudentTaskValues( stdTask ), whereClause,
-				new String[] { String.valueOf( stdTask.getID() ) } );
+		String sql = COL_ID + "=?";
+		retVal = db.executeUpdate( sql );
 
 		return retVal;
 	}
@@ -261,13 +263,11 @@ class StudentTaskTbl {
 	 * @param db
 	 * @return
 	 */
-	public static int Delete( Assignment stdTask, SQLiteDatabase db ) {
+	public static int Delete( Assignment stdTask, PreparedStatement db ) throws SQLException {
 		int retVal = 0;
 
-		String whereClause = COL_ID + "=?";
-		Log.d( TAG, whereClause );
-
-		retVal = db.delete( TBL_NAME, whereClause, new String[] { String.valueOf( stdTask.getID() ) } );
+		String sql = COL_ID + "=?";
+		retVal = db.executeUpdate( sql );
 
 		return retVal;
 	}
@@ -277,22 +277,18 @@ class StudentTaskTbl {
 	 * @param task
 	 * @return
 	 */
-	private static ContentValues StudentTaskValues( Assignment task ) {
-		ContentValues cv = new ContentValues();
-
-		cv.put( COL_TASK, task.getTaskID() );
-		cv.put( COL_IDENT, task.getIdent() );
+	private static void StudentTaskValues( Assignment task, PreparedStatement db, int index ) throws SQLException {
+		db.setInt( index++, task.getTaskID() );
+		db.setString( index++, task.getIdent() );
 
 		Date date = task.getHandInDate();
 		long dateL = 0;
 		if ( date != null )
 			dateL = date.getTime();
-		cv.put( COL_DATE, dateL );
+		db.setLong( index++, dateL );
 
-		cv.put( COL_MODE, task.getMode() );
-		cv.put( COL_COMMENT, task.getComment() );
-
-		return cv;
+		db.setInt( index++, task.getMode() );
+		db.setString( index++, task.getComment() );
 	}
 
 }

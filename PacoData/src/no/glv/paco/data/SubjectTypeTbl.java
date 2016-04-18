@@ -1,8 +1,13 @@
 package no.glv.paco.data;
 
 import java.awt.Cursor;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 
 import no.glv.paco.intrfc.SubjectType;
 
@@ -14,7 +19,7 @@ import no.glv.paco.intrfc.SubjectType;
  */
 class SubjectTypeTbl {
 
-	private static final String TAG = SubjectTypeTbl.class.getSimpleName();
+	private static final Logger log = Logger.getLogger( SubjectTypeTbl.class.getSimpleName() );
 
 	public static final String TBL_NAME = "sbjcttp";
 
@@ -43,22 +48,21 @@ class SubjectTypeTbl {
 	 * 
 	 * @param db Do not close!
 	 */
-	static void CreateTable( SQLiteDatabase db ) {
+	static void CreateTable( Statement db ) throws SQLException {
 		String sql = "CREATE TABLE " + TBL_NAME + "("
 				+ COL_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, "
 				+ COL_NAME + " TEXT NOT NULL, "
 				+ COL_DESC + " TEXT, "
 				+ COL_TYPE + " INTEGER)";
 
-		Log.v( TAG, "Executing SQL: " + sql );
-		db.execSQL( sql );
+		db.executeUpdate( sql );
 	}
 
-	public static void DropTable( SQLiteDatabase db ) {
+
+	public static void DropTable( Statement db ) throws SQLException {
 		String sql = "DROP TABLE IF EXISTS " + TBL_NAME;
 
-		Log.v( TAG, "Executing SQL: " + sql );
-		db.execSQL( sql );
+		db.executeUpdate( sql );
 	}
 
 	/**
@@ -68,23 +72,20 @@ class SubjectTypeTbl {
 	 * @return A list of every known {@link SubjectType} or an empty list if
 	 *         something fails
 	 */
-	public static List<SubjectType> LoadAll( SQLiteDatabase db ) {
+	public static List<SubjectType> LoadAll( PreparedStatement db ) throws SQLException {
 		List<SubjectType> list = new ArrayList<SubjectType>();
 
 		String sql = "SELECT * FROM " + TBL_NAME;
-		Log.d( TAG, "Executing SQL: " + sql );
 
 		try {
-			Cursor cursor = db.rawQuery( sql, null );
-			cursor.moveToFirst();
+			ResultSet cursor = db.executeQuery( sql );
 			while ( !cursor.isAfterLast() ) {
 				list.add( CreateFromCursor( cursor ) );
-				cursor.moveToNext();
 			}
 			cursor.close();
 		}
 		catch ( Exception e ) {
-			Log.e( TAG, "Error getting phonerecord", e );
+			// TODO
 		}
 
 		db.close();
@@ -101,7 +102,7 @@ class SubjectTypeTbl {
 	 * @param cursor
 	 * @return
 	 */
-	private static SubjectType CreateFromCursor( Cursor cursor ) {
+	private static SubjectType CreateFromCursor( ResultSet cursor ) throws SQLException {
 		SubjectTypeBean st = new SubjectTypeBean();
 
 		st._id = cursor.getInt( COL_ID_ID );
@@ -124,7 +125,7 @@ class SubjectTypeTbl {
 	 * 
 	 * @return The row number of the newly created {@link SubjectType}.
 	 */
-	public static long Insert( SubjectType st, SQLiteDatabase db ) {
+	public static long Insert( SubjectType st, PreparedStatement db ) throws SQLException {
 		return Insert( st, db, true );
 	}
 
@@ -135,7 +136,7 @@ class SubjectTypeTbl {
 	 * @param db
 	 * @return The number of rows inserted in the database.
 	 */
-	public static long Insert( List<SubjectType> list, SQLiteDatabase db ) {
+	public static long Insert( List<SubjectType> list, PreparedStatement db ) throws SQLException {
 		int count = 0;
 		for ( SubjectType st : list ) {
 			long retVal = Insert( st, db, false );
@@ -156,14 +157,17 @@ class SubjectTypeTbl {
 	 * @param close Weather or not to close the DB connection
 	 * 
 	 * @return The row number in the database.
+     *
+     * TODO: Implement
 	 */
-	private static long Insert( SubjectType st, SQLiteDatabase db, boolean close ) {
-		ContentValues stValues = SQLValues( st );
+	private static long Insert( SubjectType st, PreparedStatement db, boolean close ) throws SQLException {
+		String sql = "";
+        SQLValues( st, db, 1 );
 
 		// retVal will be row number or -1 if error
-		long retVal = db.insert( TBL_NAME, null, stValues );
+		long retVal = db.executeUpdate( sql );
 		if ( retVal == -1 ) {
-			Log.e( TAG, "Failed to insert SubjectType: " + st.getName() );
+			// TODO Log.e( TAG, "Failed to insert SubjectType: " + st.getName() );
 		}
 		else
 			( (SubjectTypeBean) st )._id = (int) retVal;
@@ -181,14 +185,14 @@ class SubjectTypeTbl {
 	 * 
 	 * @return 1 if successful, 0 otherwise
 	 */
-	public static int Update( SubjectType st, SQLiteDatabase db ) {
+	public static int Update( SubjectType st, PreparedStatement db ) throws SQLException {
 		String sqlFiler = COL_ID + " = ?";
-		ContentValues cv = SQLValues( st );
+		SQLValues( st, db, 2 );
 
 		// retVal will be 1 if success, 0 otherwise
-		int retVal = db.update( TBL_NAME, cv, sqlFiler, new String[] { String.valueOf( st.getID() ) } );
+		int retVal = db.executeUpdate( sqlFiler);
 		if ( retVal == 0 )
-			Log.e( TAG, "Error updating SubjecType#name = " + st.getName() );
+			log.warning( "Error updating SubjecType#name = " + st.getName() );
 		
 		db.close();
 
@@ -200,13 +204,13 @@ class SubjectTypeTbl {
 	 * @param id The row number of the SubjectType
 	 * @param db
 	 */
-	public static int Delete( int id, SQLiteDatabase db ) {
+	public static int Delete( int id, PreparedStatement db ) throws SQLException {
 		String sqlFilter = COL_ID + " = ?";
 		
 		// retVal will be rows deleted, or 0
-		int retVal = db.delete( TBL_NAME, sqlFilter, new String[] { String.valueOf( id ) } );
+		int retVal = db.executeUpdate( sqlFilter );
 		if ( retVal == 0 ) {
-			Log.e( TAG, "Error deleting SubjectType#ID = " + id );
+			log.warning( "Error deleting SubjectType#ID = " + id );
 		}
 		
 		db.close();
@@ -220,13 +224,9 @@ class SubjectTypeTbl {
 	 * @param st
 	 * @return
 	 */
-	private static ContentValues SQLValues( SubjectType st ) {
-		ContentValues cv = new ContentValues();
-
-		cv.put( COL_NAME, st.getName() );
-		cv.put( COL_DESC, st.getDescription() );
-		cv.put( COL_TYPE, st.getType() );
-
-		return cv;
+	private static void SQLValues( SubjectType st, PreparedStatement db, int index ) throws SQLException {
+		db.setString( index++, st.getName() );
+		db.setString( index++, st.getDescription() );
+		db.setInt( index++, st.getType() );
 	}
 }
