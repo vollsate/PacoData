@@ -1,7 +1,7 @@
 package no.glv.paco.intrfc;
 
 /**
- * Listener that defines change to the DataHandler data set. The interfaces
+ * Listener that defines change to the DataHandler gsql set. The interfaces
  * will only be called when there is a change to the state of the
  * DataHandler, and not when there's a change to any intern state of an
  * instance.
