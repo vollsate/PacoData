@@ -1,6 +1,6 @@
-package no.glv.paco.data.test;
+package no.glv.paco.gsql.test;
 
-import no.glv.paco.data.CloudSQLDatabase;
+import no.glv.paco.gsql.CloudSQLDatabase;
 
 /**
  * Created by GleVoll on 18.04.2016.
